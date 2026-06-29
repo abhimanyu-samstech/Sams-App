@@ -13,19 +13,20 @@ ApplicationWindow {
     color: "#0a0a0a"
 
     property bool isWebRTCMode: false
+    property bool showSettings: false
 
     VideoOutput {
         id: videoOutput
         anchors.fill: parent
-        visible: !isWebRTCMode
+        visible: !isWebRTCMode && !showSettings
     }
 
-    // ── WebRTC View (remote mode) ─────────────────────────────────
+    // ── WebRTC View ───────────────────────────────────────────────
     Rectangle {
         id: webrtcScreen
         anchors.fill: parent
         color: "#0a0a0a"
-        visible: isWebRTCMode
+        visible: isWebRTCMode && !showSettings
         z: 1
 
         WebView {
@@ -36,11 +37,12 @@ ApplicationWindow {
         }
     }
 
+    // ── Loading Screen ────────────────────────────────────────────
     Rectangle {
         id: loadingScreen
         anchors.fill: parent
         color: "#0a0a0a"
-        visible: !cameraManager.cameraAvailable
+        visible: !cameraManager.cameraAvailable && !showSettings
         z: 10
 
         Column {
@@ -101,6 +103,132 @@ ApplicationWindow {
         }
     }
 
+    // ── Settings Screen ───────────────────────────────────────────
+    Rectangle {
+        id: settingsScreen
+        anchors.fill: parent
+        color: "#0a0a0a"
+        visible: showSettings
+        z: 20
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 24
+            width: parent.width * 0.85
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Settings"
+                color: "#ffffff"
+                font.pixelSize: 22
+                font.weight: Font.Medium
+            }
+
+            // Server URL input
+            Column {
+                width: parent.width
+                spacing: 8
+
+                Text {
+                    text: "MediaMTX Server URL"
+                    color: Qt.rgba(1, 1, 1, 0.6)
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 48
+                    radius: 10
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: serverUrlInput.activeFocus ? "#00d4ff" : Qt.rgba(1, 1, 1, 0.2)
+                    border.width: 1
+
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                    TextInput {
+                        id: serverUrlInput
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        text: streamManager.serverUrl
+                        color: "#ffffff"
+                        font.pixelSize: 14
+                        verticalAlignment: TextInput.AlignVCenter
+                        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+                        clip: true
+                    }
+                }
+
+                Text {
+                    text: "Example: http://192.168.0.101:8889"
+                    color: Qt.rgba(1, 1, 1, 0.3)
+                    font.pixelSize: 11
+                }
+            }
+
+            // Save button
+            Rectangle {
+                width: parent.width
+                height: 50
+                radius: 12
+                color: "#00d4ff"
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Save"
+                    color: "#000000"
+                    font.pixelSize: 16
+                    font.weight: Font.Bold
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        streamManager.saveServerUrl(serverUrlInput.text)
+                        showSettings = false
+                        toast.show("✅ Server URL saved")
+                    }
+                }
+            }
+
+            // Cancel button
+            Rectangle {
+                width: parent.width
+                height: 50
+                radius: 12
+                color: Qt.rgba(1, 1, 1, 0.08)
+                border.color: Qt.rgba(1, 1, 1, 0.2)
+                border.width: 1
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Cancel"
+                    color: Qt.rgba(1, 1, 1, 0.7)
+                    font.pixelSize: 16
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: showSettings = false
+                }
+            }
+
+            // Current URL display
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Current: " + streamManager.serverUrl
+                color: Qt.rgba(1, 1, 1, 0.3)
+                font.pixelSize: 11
+                wrapMode: Text.WrapAnywhere
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
+    // ── Top Bar ───────────────────────────────────────────────────
     Rectangle {
         id: topBar
         anchors.top: parent.top
@@ -108,7 +236,7 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 56
         color: Qt.rgba(0, 0, 0, 0.6)
-        visible: cameraManager.cameraAvailable
+        visible: cameraManager.cameraAvailable || showSettings
         z: 5
         layer.enabled: true
 
@@ -120,6 +248,7 @@ ApplicationWindow {
             Row {
                 spacing: 8
                 Layout.alignment: Qt.AlignVCenter
+                visible: !showSettings
 
                 Rectangle {
                     width: 8
@@ -176,7 +305,8 @@ ApplicationWindow {
                         onClicked: {
                             isWebRTCMode = !isWebRTCMode
                             if (isWebRTCMode) {
-                                webView.url = "http://192.168.0.102:8889/live/CAM001"
+                                var url = streamManager.webrtcUrl("live/CAM001")
+                                webView.loadHtml('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;background:#000;}video{width:100vw;height:100vh;object-fit:cover;}</style></head><body><video id="v" autoplay playsinline muted></video><script>async function start(){const pc=new RTCPeerConnection();pc.ontrack=e=>{document.getElementById("v").srcObject=e.streams[0];};const offer=await pc.createOffer({offerToReceiveVideo:true,offerToReceiveAudio:false});await pc.setLocalDescription(offer);const r=await fetch("' + url + '/whep",{method:"POST",headers:{"Content-Type":"application/sdp"},body:offer.sdp});const ans=await r.text();await pc.setRemoteDescription({type:"answer",sdp:ans});}start();</script></body></html>', "http://localhost")
                                 toast.show("🌐 Switched to WebRTC mode")
                             } else {
                                 webView.url = ""
@@ -187,11 +317,21 @@ ApplicationWindow {
                 }
             }
 
+            // Settings title
+            Text {
+                visible: showSettings
+                text: "Settings"
+                color: "#ffffff"
+                font.pixelSize: 16
+                font.weight: Font.Medium
+                Layout.alignment: Qt.AlignVCenter
+            }
+
             Item { Layout.fillWidth: true }
 
             Row {
                 spacing: 6
-                visible: recordingManager.isRecording
+                visible: recordingManager.isRecording && !showSettings
                 Layout.alignment: Qt.AlignVCenter
 
                 Rectangle {
@@ -223,6 +363,7 @@ ApplicationWindow {
                 color: Qt.rgba(1, 1, 1, 0.6)
                 font.pixelSize: 13
                 Layout.alignment: Qt.AlignVCenter
+                visible: !showSettings
 
                 Timer {
                     interval: 1000
@@ -234,6 +375,7 @@ ApplicationWindow {
         }
     }
 
+    // ── Bottom Control Bar ────────────────────────────────────────
     Rectangle {
         id: bottomBar
         anchors.bottom: parent.bottom
@@ -241,7 +383,7 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 100
         color: Qt.rgba(0, 0, 0, 0.7)
-        visible: cameraManager.cameraAvailable
+        visible: cameraManager.cameraAvailable && !showSettings
         z: 5
 
         RowLayout {
@@ -352,19 +494,19 @@ ApplicationWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "ℹ️"
+                        text: "⚙️"
                         font.pixelSize: 22
                     }
 
                     MouseArea {
                         id: infoMouse
                         anchors.fill: parent
-                        onClicked: infoPopup.visible = !infoPopup.visible
+                        onClicked: showSettings = true
                     }
                 }
 
                 Text {
-                    text: "INFO"
+                    text: "SET"
                     color: Qt.rgba(1, 1, 1, 0.6)
                     font.pixelSize: 10
                     font.weight: Font.Medium
@@ -374,64 +516,18 @@ ApplicationWindow {
         }
     }
 
+    // ── Snapshot flash effect ─────────────────────────────────────
     Rectangle {
         id: snapshotFlash
         anchors.fill: parent
         color: "white"
         opacity: 0
         z: 20
+        visible: !showSettings
         Behavior on opacity { NumberAnimation { duration: 150 } }
     }
 
-    Rectangle {
-        id: infoPopup
-        anchors.centerIn: parent
-        width: 280
-        height: 180
-        radius: 16
-        color: Qt.rgba(0.1, 0.1, 0.1, 0.95)
-        border.color: Qt.rgba(0, 212, 255, 0.3)
-        border.width: 1
-        visible: false
-        z: 30
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 12
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Camera Info"
-                color: "#ffffff"
-                font.pixelSize: 16
-                font.weight: Font.Medium
-            }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Device: CAM001\nModel: C524\nStream: RTSP H.264\nResolution: 1920x1080\nMode: " + (isWebRTCMode ? "WebRTC" : "RTSP")
-                color: Qt.rgba(1, 1, 1, 0.7)
-                font.pixelSize: 13
-                lineHeight: 1.5
-                horizontalAlignment: Text.AlignHCenter
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                isWebRTCMode = !isWebRTCMode
-                if (isWebRTCMode) {
-                    webView.loadHtml('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;background:#000;}video{width:100vw;height:100vh;object-fit:cover;}</style></head><body><video id="v" autoplay playsinline muted></video><script>async function start(){const r=await fetch("http://192.168.0.102:8889/live/CAM001/whep",{method:"POST",headers:{"Content-Type":"application/sdp"},body:""});const sdp=await r.text();const pc=new RTCPeerConnection();pc.ontrack=e=>{document.getElementById("v").srcObject=e.streams[0];};await pc.setRemoteDescription({type:"answer",sdp});const offer=await pc.createOffer();await pc.setLocalDescription(offer);const r2=await fetch("http://192.168.0.102:8889/live/CAM001/whep",{method:"POST",headers:{"Content-Type":"application/sdp"},body:offer.sdp});const ans=await r2.text();await pc.setRemoteDescription({type:"answer",sdp:ans});}start();</script></body></html>', "http://localhost")
-                    toast.show("🌐 Switched to WebRTC mode")
-                } else {
-                    webView.url = ""
-                    toast.show("📡 Switched to RTSP mode")
-                }
-            }
-        }
-    }
-
+    // ── Toast notifications ───────────────────────────────────────
     Rectangle {
         id: toast
         anchors.horizontalCenter: parent.horizontalCenter
@@ -466,6 +562,7 @@ ApplicationWindow {
         }
     }
 
+    // ── Connections ───────────────────────────────────────────────
     Connections {
         target: recordingManager
 

@@ -6,6 +6,7 @@
 #include "videoplayer.h"
 #include "cameramanager.h"
 #include "recordingmanager.h"
+#include "streammanager.h"
 
 int main(int argc, char *argv[])
 {
@@ -21,11 +22,13 @@ int main(int argc, char *argv[])
     VideoPlayer player;
     CameraManager cameraManager;
     RecordingManager recordingManager;
+    StreamManager streamManager;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("videoPlayer", &player);
     engine.rootContext()->setContextProperty("cameraManager", &cameraManager);
     engine.rootContext()->setContextProperty("recordingManager", &recordingManager);
+    engine.rootContext()->setContextProperty("streamManager", &streamManager);
 
     QObject::connect(
         &engine,

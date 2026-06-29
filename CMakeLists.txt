@@ -16,6 +16,8 @@ qt_add_executable(appCamTest1
     cameramanager.cpp
     recordingmanager.h
     recordingmanager.cpp
+    streammanager.h
+    streammanager.cpp
 )
 
 qt_add_qml_module(appCamTest1

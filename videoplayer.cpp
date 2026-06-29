@@ -38,8 +38,8 @@ void VideoPlayer::setVideoOutput(QObject *videoOutput)
 
 void VideoPlayer::start()
 {
-    // Legacy method - starts with hardcoded URL for testing
-    startUrl("rtsp://192.168.0.150/video0");
+    // Discovery-based startup — URL comes from CameraManager via startUrl()
+    qDebug() << "VideoPlayer: start() called, waiting for discovery...";
 }
 
 void VideoPlayer::startUrl(const QString &rtspUrl)

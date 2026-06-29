@@ -75,10 +75,6 @@ CamTest1/
   - Download from: https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
   - Select: `AArch32 GNU/Linux target (arm-none-linux-gnueabihf)` → `.exe` installer
 
-### Media Server (PC or Cloud VPS)
-- **mediamtx v1.19.1** — https://github.com/bluenviron/mediamtx/releases
-- **FFmpeg** (Windows build) — https://www.gyan.dev/ffmpeg/builds/
-
 ### EVB Hardware
 - Infinity6C SoC EVB
 - ARMv7, 128MB RAM, BusyBox v1.20.2, Linux 5.10.61
@@ -136,11 +132,11 @@ chmod +x camera_agent_arm
 The vendor camera program must start first (it initialises the sensor and creates the RTSP server). Then start `camera_agent_arm` in the background:
 
 ```sh
-# Terminal 1 on EVB — start vendor camera stack (creates rtsp://192.168.0.150/video0)
+# Start vendor camera stack (creates rtsp://192.168.0.150/video0)
 cd /customer/test
 echo 0 | ./prog_vif_isp_scl_ut param_snr0.ini
 
-# Terminal 2 on EVB — start discovery agent in background
+# In the same terminal, start discovery agent in background
 /customer/streamapp/camera_agent_arm &
 ```
 
@@ -184,7 +180,7 @@ sleep 3
 
 ## Path B — Remote WebRTC Streaming (any network)
 
-> What this does: A media server (mediamtx) runs on your PC or a cloud server. It receives the RTSP stream from the EVB via FFmpeg and serves it as WebRTC. The app connects to the media server using WebRTC — this works from anywhere, even on mobile data.
+> What this does: A media server runs on your PC or a cloud server. It receives the RTSP stream from the EVB and converts it to WebRTC. The app connects to the media server using WebRTC — this works from anywhere, even on mobile data.
 
 ```
 EVB camera → RTSP → PC FFmpeg → RTMP → mediamtx → WebRTC → Android app (any network)
@@ -192,18 +188,29 @@ EVB camera → RTSP → PC FFmpeg → RTMP → mediamtx → WebRTC → Android a
 
 > **Prerequisite:** Complete Path A first. The EVB vendor camera stack must be running.
 
-### B1 — Install mediamtx on your PC
+### B1 — Install mediamtx
+
+**What is mediamtx?**
+mediamtx (formerly rtsp-simple-server) is a lightweight, open-source media server. It accepts live video streams in one format and re-serves them in another. In this project it receives RTMP from FFmpeg and converts it to WebRTC for the app.
+
+Why do we need it? RTSP works great on a local network but is blocked by most routers when coming from the internet. WebRTC (the technology used by Zoom, Google Meet) is specifically designed to work through firewalls and routers — making remote viewing possible. mediamtx handles this conversion so the EVB stays simple.
+
+```
+FFmpeg RTMP → mediamtx → WebRTC (Android app, works from anywhere)
+                       → HLS  (browser fallback)
+                       → RTSP (VLC, other players)
+```
 
 Download **mediamtx v1.19.1** from:
 ```
 https://github.com/bluenviron/mediamtx/releases
 ```
 
-Extract the ZIP — you get `mediamtx.exe` and `mediamtx.yml`.
+Extract the ZIP — you get `mediamtx.exe` and `mediamtx.yml`. No installation needed.
 
 ### B2 — Open firewall ports on your PC
 
-Run Command Prompt as **Administrator**:
+mediamtx needs these ports to be reachable from other devices on your network. Run Command Prompt as **Administrator**:
 
 ```cmd
 netsh advfirewall firewall add rule name="mediamtx-webrtc" dir=in action=allow protocol=TCP localport=8889
@@ -211,13 +218,25 @@ netsh advfirewall firewall add rule name="mediamtx-ice" dir=in action=allow prot
 netsh advfirewall firewall add rule name="mediamtx-rtmp" dir=in action=allow protocol=TCP localport=1935
 ```
 
-### B3 — Download Windows FFmpeg
+### B3 — Install FFmpeg on your PC
 
-Download from:
+**What is FFmpeg?**
+FFmpeg is a free, open-source command-line tool for reading, converting, and streaming audio/video. In this project it acts as a bridge — it pulls the H.264 video from the EVB via RTSP and immediately pushes it to mediamtx via RTMP without re-encoding.
+
+```
+EVB RTSP (:554) → FFmpeg → mediamtx RTMP (:1935)
+```
+
+The `-c copy` flag means "copy the video as-is, don't re-encode" — this is fast and uses minimal CPU.
+
+**Why does FFmpeg run on the PC and not the EVB?**
+We cross-compiled FFmpeg for ARMv7 and it runs on the EVB — however the EVB's vendor RTSP server rejects connections from the EVB itself (loopback timeout). FFmpeg on the PC pulls from the EVB's network IP (`192.168.0.150`) which works correctly. This is a known EVB vendor limitation.
+
+Download Windows FFmpeg from:
 ```
 https://www.gyan.dev/ffmpeg/builds/
 ```
-Download `ffmpeg-release-essentials.zip`, extract it, and note the path to `ffmpeg.exe` inside the `bin` folder.
+Download `ffmpeg-release-essentials.zip`, extract it, and note the path to `ffmpeg.exe` in the `bin` folder.
 
 ### B4 — Start mediamtx
 
@@ -232,11 +251,9 @@ INF [RTMP] started with listener on :1935
 INF [WebRTC] started with listeners on :8889, :8189
 ```
 
-### B5 — Start FFmpeg relay (PC pulls RTSP from EVB, pushes to mediamtx)
+### B5 — Start FFmpeg relay
 
-> Note: FFmpeg runs on the PC, not the EVB. This is because the EVB's vendor RTSP server does not accept loopback connections from the EVB itself.
-
-Open a new Command Prompt:
+Open a new Command Prompt and run:
 
 ```cmd
 ffmpeg.exe -i rtsp://192.168.0.150/video0 -c copy -f flv rtmp://127.0.0.1:1935/live/CAM001
@@ -257,9 +274,9 @@ You should see the live stream in the browser.
 ### B6 — Configure the app with the server URL
 
 1. Launch the app (RTSP stream should already be working from Path A)
-2. Tap the **⚙️** button in the bottom bar
+2. Tap the **⚙️** button in the bottom bar to open Settings
 3. Enter the mediamtx server URL: `http://<your-pc-ip>:8889`
-4. Tap **Save**
+4. Tap **Save** — the URL is stored permanently on the device
 5. Tap the **RTSP** toggle button in the top bar to switch to **WEB** mode
 6. The WebRTC stream should appear
 
@@ -274,9 +291,7 @@ To stream from outside your home/office network:
 3. In the app Settings, change the server URL to: `http://<public-ip>:8889`
 4. Switch your phone to mobile data and tap the WEB toggle — you should see the stream from anywhere
 
-> For production, deploy mediamtx on a cloud VPS with a fixed public IP or domain name instead of relying on your home router's IP.
-
----
+> For production, deploy mediamtx on a cloud VPS with a fixed public IP or domain name instead of relying on your home router's changing IP.
 
 ---
 
@@ -292,15 +307,6 @@ To stream from outside your home/office network:
 - Open firewall ports: `8889` (TCP), `8189` (UDP)
 - For home/office setup: configure port forwarding on your router
 - For production: deploy mediamtx on a cloud VPS
-
-### Windows Firewall (if running mediamtx on PC)
-
-Run as Administrator:
-```cmd
-netsh advfirewall firewall add rule name="mediamtx-webrtc" dir=in action=allow protocol=TCP localport=8889
-netsh advfirewall firewall add rule name="mediamtx-ice" dir=in action=allow protocol=UDP localport=8189
-netsh advfirewall firewall add rule name="mediamtx-rtmp" dir=in action=allow protocol=TCP localport=1935
-```
 
 ---
 
@@ -368,6 +374,11 @@ The vendor RTSP server does not accept connections from the EVB itself (loopback
 
 **Binary runs on PC but fails on EVB with "ARM Bionic" error**
 The binary was compiled with Android NDK instead of ARM GNU Toolchain. Recompile using `arm-none-linux-gnueabihf-g++` with `-static` flag.
+
+**WebRTC "webpage not available" in app**
+- Check `network_security_config.xml` is correctly packaged in the APK
+- Run: `jar tf <apk-path> | findstr network` — should show `res/xml/network_security_config.xml`
+- If missing, verify `QT_ANDROID_PACKAGE_SOURCE_DIR` is set in `CMakeLists.txt`
 
 ---
 

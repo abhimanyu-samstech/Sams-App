@@ -5,8 +5,7 @@ StreamManager::StreamManager(QObject *parent)
     : QObject(parent)
     , m_settings("Innofusion", "CamTest1")
 {
-    // Load saved server URL on startup
-    m_serverUrl = m_settings.value("serverUrl", "http://192.168.0.101:8889").toString();
+    m_serverUrl = m_settings.value("serverUrl", "http://100.72.216.66:8889").toString();
     qDebug() << "StreamManager: loaded server URL:" << m_serverUrl;
 }
 

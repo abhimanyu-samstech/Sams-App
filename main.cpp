@@ -13,7 +13,11 @@ int main(int argc, char *argv[])
     QtWebView::initialize();
 
     qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", QByteArray(""));
-    qputenv("QT_IM_MODULE", QByteArray("qtvirtualkeyboard"));
+
+    // IMPORTANT:
+    // Do NOT force Qt Virtual Keyboard on Android.
+    // Let Android use its native soft keyboard.
+    // qputenv("QT_IM_MODULE", QByteArray("qtvirtualkeyboard"));
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("CamTest1");
@@ -25,6 +29,7 @@ int main(int argc, char *argv[])
     StreamManager streamManager;
 
     QQmlApplicationEngine engine;
+
     engine.rootContext()->setContextProperty("videoPlayer", &player);
     engine.rootContext()->setContextProperty("cameraManager", &cameraManager);
     engine.rootContext()->setContextProperty("recordingManager", &recordingManager);
@@ -46,12 +51,16 @@ int main(int argc, char *argv[])
 
     cameraManager.start();
 
-    // When camera is discovered, start streaming automatically
-    QObject::connect(&cameraManager, &CameraManager::cameraReady,
-                     &player, [&player](const QString &deviceId,
-                               const QString &rtspUrl) {
+    QObject::connect(&cameraManager,
+                     &CameraManager::cameraReady,
+                     &player,
+                     [&player](const QString &deviceId,
+                               const QString &rtspUrl)
+                     {
                          Q_UNUSED(deviceId)
+
                          static bool started = false;
+
                          if (!started) {
                              started = true;
                              qDebug() << "Auto-starting stream for" << rtspUrl;
@@ -59,14 +68,17 @@ int main(int argc, char *argv[])
                          }
                      });
 
-    // Connect recording manager to video sink once player is ready
-    QObject::connect(player.mediaPlayer(), &QMediaPlayer::playbackStateChanged,
-                     &recordingManager, [&player, &recordingManager](QMediaPlayer::PlaybackState state) {
+    QObject::connect(player.mediaPlayer(),
+                     &QMediaPlayer::playbackStateChanged,
+                     &recordingManager,
+                     [&player, &recordingManager](QMediaPlayer::PlaybackState state)
+                     {
                          if (state == QMediaPlayer::PlayingState) {
-                             recordingManager.setVideoSink(player.mediaPlayer()->videoSink());
+                             recordingManager.setVideoSink(
+                                 player.mediaPlayer()->videoSink());
                              qDebug() << "RecordingManager: connected to video sink";
                          }
                      });
 
-    return QGuiApplication::exec();
+    return app.exec();
 }

@@ -111,119 +111,124 @@ ApplicationWindow {
         visible: showSettings
         z: 20
 
-        Column {
-            anchors.centerIn: parent
-            spacing: 24
-            width: parent.width * 0.85
+        // Flickable wrapper is the key fix for Android keyboard
+        Flickable {
+            anchors.fill: parent
+            contentHeight: settingsColumn.height + 100
+            interactive: true
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Settings"
-                color: "#ffffff"
-                font.pixelSize: 22
-                font.weight: Font.Medium
-            }
-
-            // Server URL input
             Column {
-                width: parent.width
-                spacing: 8
+                id: settingsColumn
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 80
+                spacing: 24
+                width: parent.width * 0.85
 
                 Text {
-                    text: "MediaMTX Server URL"
-                    color: Qt.rgba(1, 1, 1, 0.6)
-                    font.pixelSize: 12
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Settings"
+                    color: "#ffffff"
+                    font.pixelSize: 22
                     font.weight: Font.Medium
+                }
+
+                Column {
+                    width: parent.width
+                    spacing: 8
+
+                    Text {
+                        text: "MediaMTX Server URL"
+                        color: Qt.rgba(1, 1, 1, 0.6)
+                        font.pixelSize: 12
+                        font.weight: Font.Medium
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: 48
+                        radius: 10
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                        border.color: urlField.activeFocus ? "#00d4ff" : Qt.rgba(1, 1, 1, 0.2)
+                        border.width: 1
+
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                        TextEdit {
+                            id: urlField
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            text: streamManager.serverUrl
+                            color: "#ffffff"
+                            font.pixelSize: 14
+                            verticalAlignment: TextEdit.AlignVCenter
+                            wrapMode: TextEdit.NoWrap
+                            inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhUrlCharactersOnly
+                            clip: true
+                        }
+                    }
+
+                    Text {
+                        text: "Example: http://192.168.0.101:8889"
+                        color: Qt.rgba(1, 1, 1, 0.3)
+                        font.pixelSize: 11
+                    }
                 }
 
                 Rectangle {
                     width: parent.width
-                    height: 48
-                    radius: 10
+                    height: 50
+                    radius: 12
+                    color: "#00d4ff"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Save"
+                        color: "#000000"
+                        font.pixelSize: 16
+                        font.weight: Font.Bold
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            streamManager.saveServerUrl(urlField.text)
+                            showSettings = false
+                            toast.show("✅ Server URL saved")
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 50
+                    radius: 12
                     color: Qt.rgba(1, 1, 1, 0.08)
-                    border.color: serverUrlInput.activeFocus ? "#00d4ff" : Qt.rgba(1, 1, 1, 0.2)
+                    border.color: Qt.rgba(1, 1, 1, 0.2)
                     border.width: 1
 
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Cancel"
+                        color: Qt.rgba(1, 1, 1, 0.7)
+                        font.pixelSize: 16
+                    }
 
-                    TextInput {
-                        id: serverUrlInput
+                    MouseArea {
                         anchors.fill: parent
-                        anchors.margins: 12
-                        text: streamManager.serverUrl
-                        color: "#ffffff"
-                        font.pixelSize: 14
-                        verticalAlignment: TextInput.AlignVCenter
-                        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
-                        clip: true
+                        onClicked: showSettings = false
                     }
                 }
 
                 Text {
-                    text: "Example: http://192.168.0.101:8889"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Current: " + streamManager.serverUrl
                     color: Qt.rgba(1, 1, 1, 0.3)
                     font.pixelSize: 11
+                    wrapMode: Text.WrapAnywhere
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
                 }
-            }
-
-            // Save button
-            Rectangle {
-                width: parent.width
-                height: 50
-                radius: 12
-                color: "#00d4ff"
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "Save"
-                    color: "#000000"
-                    font.pixelSize: 16
-                    font.weight: Font.Bold
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        streamManager.saveServerUrl(serverUrlInput.text)
-                        showSettings = false
-                        toast.show("✅ Server URL saved")
-                    }
-                }
-            }
-
-            // Cancel button
-            Rectangle {
-                width: parent.width
-                height: 50
-                radius: 12
-                color: Qt.rgba(1, 1, 1, 0.08)
-                border.color: Qt.rgba(1, 1, 1, 0.2)
-                border.width: 1
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "Cancel"
-                    color: Qt.rgba(1, 1, 1, 0.7)
-                    font.pixelSize: 16
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: showSettings = false
-                }
-            }
-
-            // Current URL display
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Current: " + streamManager.serverUrl
-                color: Qt.rgba(1, 1, 1, 0.3)
-                font.pixelSize: 11
-                wrapMode: Text.WrapAnywhere
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
             }
         }
     }
@@ -280,7 +285,6 @@ ApplicationWindow {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // Mode toggle button
                 Rectangle {
                     width: 60
                     height: 24
@@ -317,7 +321,6 @@ ApplicationWindow {
                 }
             }
 
-            // Settings title
             Text {
                 visible: showSettings
                 text: "Settings"
